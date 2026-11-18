@@ -60,11 +60,11 @@ A process-local lock protects counters and approval consumption. Approval tokens
 python -m unittest -v
 ```
 
-14 tests cover authentication, policy denial, nested redaction, output redaction, concurrent limit enforcement, approval binding, replay, expiry and administrator separation. These are correctness checks for implemented controls, not evidence of comprehensive attack resistance.
+19 tests cover authentication, policy denial, nested redaction, output redaction, concurrent limit enforcement, approval binding, replay, expiry and administrator separation. These are correctness checks for implemented controls, not evidence of comprehensive attack resistance.
 
 ## Deployment and limits
 
-`docs/index.html` is a standalone public browser simulation. It does not call the Python API or implement its cryptographic approvals. A Dockerfile is included for a backend host; set both credentials at runtime and use a TLS reverse proxy. Do not publish these credentials in GitHub or frontend code.
+`docs/index.html` calls the deployed Python API for policy inspection and lexical search. It does not issue administrator approvals or execute privileged tools. A Dockerfile is included for a backend host; set both credentials at runtime and use a TLS reverse proxy. Do not publish these credentials in GitHub or frontend code.
 
 Run **one worker only**: state is in memory, not shared or durable. Session identifiers are caller-selected, so a caller can evade a per-session cap by creating another session; this is not a tenant billing control. There are at most 1,000 active sessions/approvals and 1,000 retained audit events. Counts reset on restart. HTTP ingress size/rate limits and authenticated principal-to-session binding are deployment responsibilities. Regex checks miss obfuscated, multilingual and indirect attacks; PII redaction is incomplete. Request digests can still permit guessing of predictable input. No external tool execution is secured by this prototype.
 
@@ -78,7 +78,7 @@ Next steps: durable principal-bound quotas, an actual MCP adapter, security eval
 - [GitHub Actions test and Docker build results](https://github.com/kyaswanthneeli-stack/agentgate/actions/workflows/ci.yml)
 - [Railway deployment configuration](railway.json) using the existing Dockerfile and `/health` endpoint.
 
-**Hosting status:** deployment *configured*, not a claimed live production API. Create a Railway service from this repository, add `AGENTGATE_CLIENT_KEY` and `AGENTGATE_ADMIN_KEY` privately, and attach a public HTTPS domain. The browser-only demonstration does not call this backend. Secrets must never be placed in client-side HTML or committed files.
+**Hosting status:** deployed on Railway at https://agentgate-production-00036f18.up.railway.app/docs. The portfolio now calls the public, bounded backend endpoints described below. Privileged endpoints remain authenticated; no credentials are shipped to the browser.
 
 ## Captioned architecture video
 
@@ -93,3 +93,12 @@ Next steps: durable principal-bound quotas, an actual MCP adapter, security eval
 [![Live public API smoke test](https://github.com/kyaswanthneeli-stack/agentgate/actions/workflows/deployment-smoke.yml/badge.svg)](https://github.com/kyaswanthneeli-stack/agentgate/actions/workflows/deployment-smoke.yml)
 
 This is a live Railway-hosted Python backend, built from the public GitHub repository. GitHub-hosted smoke tests verify that `/health` returns a valid healthy JSON response, `/docs` serves Swagger UI, and the protected endpoint rejects requests without authentication (HTTP 401). **Secrets are stored as Railway backend environment variables, never in this repository.** The publicly viewable API documentation doesn't grant access to privileged operations. Tool adapters are deliberately simulated; notifications are not actually sent. For architecture and setup details, see [the engineering walkthrough](docs/ARCHITECTURE_AND_DEMO.md).
+
+## Live browser workflow
+
+1. Open the linked portfolio page and choose a request example.
+2. Click **Inspect on server**. The browser posts to `/public/inspect`; the real Python policy engine returns the decision and sanitized arguments. Inspection does not execute a tool or grant approval.
+3. Paste non-sensitive text into the document search panel, separating documents with a blank line. Click **Search on server** to call `/public/search`. It ranks the submitted documents using lexical word counts.
+4. Inspect the JSON response, including its operation mode, processed-document count and matching excerpts.
+
+The page shows connection errors explicitly and never silently substitutes a local result. `/public/status` checks availability. Only the portfolio origin is allowed by CORS. Public operations are bounded and perform no external notifications, paid calls or privileged execution. Avoid submitting confidential documents: this is a public portfolio service. No visitor text is deliberately persisted by these handlers. Public endpoint payload validation is not an ingress rate limiter; deploy platform-level rate controls before broader use.
