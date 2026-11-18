@@ -69,3 +69,13 @@ python -m unittest -v
 Run **one worker only**: state is in memory, not shared or durable. Session identifiers are caller-selected, so a caller can evade a per-session cap by creating another session; this is not a tenant billing control. There are at most 1,000 active sessions/approvals and 1,000 retained audit events. Counts reset on restart. HTTP ingress size/rate limits and authenticated principal-to-session binding are deployment responsibilities. Regex checks miss obfuscated, multilingual and indirect attacks; PII redaction is incomplete. Request digests can still permit guessing of predictable input. No external tool execution is secured by this prototype.
 
 Next steps: durable principal-bound quotas, an actual MCP adapter, security evaluation corpus, classifier comparison, denied-event auditing, approval UI and adversarial testing.
+
+## Engineering verification and deployment
+
+[![CI](https://github.com/kyaswanthneeli-stack/agentgate/actions/workflows/ci.yml/badge.svg)](https://github.com/kyaswanthneeli-stack/agentgate/actions/workflows/ci.yml)
+
+- [Architecture diagram, five-minute walkthrough and hosting checklist](docs/ARCHITECTURE_AND_DEMO.md)
+- [GitHub Actions test and Docker build results](https://github.com/kyaswanthneeli-stack/agentgate/actions/workflows/ci.yml)
+- [Railway deployment configuration](railway.json) using the existing Dockerfile and `/health` endpoint.
+
+**Hosting status:** deployment *configured*, not a claimed live production API. Create a Railway service from this repository, add `AGENTGATE_CLIENT_KEY` and `AGENTGATE_ADMIN_KEY` privately, and attach a public HTTPS domain. The browser-only demonstration does not call this backend. Secrets must never be placed in client-side HTML or committed files.
