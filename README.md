@@ -79,3 +79,7 @@ Next steps: durable principal-bound quotas, an actual MCP adapter, security eval
 - [Railway deployment configuration](railway.json) using the existing Dockerfile and `/health` endpoint.
 
 **Hosting status:** deployment *configured*, not a claimed live production API. Create a Railway service from this repository, add `AGENTGATE_CLIENT_KEY` and `AGENTGATE_ADMIN_KEY` privately, and attach a public HTTPS domain. The browser-only demonstration does not call this backend. Secrets must never be placed in client-side HTML or committed files.
+
+## Captioned architecture video
+
+[Download the 20-second MP4 architecture explainer from the latest successful Actions run](https://github.com/kyaswanthneeli-stack/agentgate/actions/workflows/walkthrough.yml). The source-of-truth render script is [docs/build_walkthrough.py](docs/build_walkthrough.py). The video is **captioned and silent** and explains the code architecture; it is **not** a recording of a live external API or paid model. Use the demo instructions above to show real backend behavior.
