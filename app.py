@@ -8,6 +8,7 @@ import secrets
 import threading
 import time
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 EMAIL = re.compile(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}')
@@ -38,7 +39,54 @@ def create_app(client_key=None, admin_key=None, limit=10, clock=time.time):
     admin_key=admin_key or os.getenv('AGENTGATE_ADMIN_KEY')
     signing=secrets.token_bytes(32)
     lock=threading.Lock(); counts={}; approvals={}; audit=[]
-    app=FastAPI(title='AgentGate',version='0.1.0')
+    app=FastAPI(title='AgentGate',version='0.2.0')
+    app.add_middleware(CORSMiddleware,
+        allow_origins=['https://kyaswanthneeli-stack.github.io'],
+        allow_methods=['GET','POST'],
+        allow_headers=['content-type'])
+    class PublicSearch(BaseModel):
+        query: str = Field(min_length=1,max_length=200)
+        documents: list[str] = Field(min_length=1,max_length=12)
+    @app.get('/public/status')
+    def public_status():
+        return {'status':'ok','policy':'operational','text_search':'operational',
+                'external_notifications':False}
+    @app.post('/public/inspect')
+    def public_inspect(call:Call):
+        # Evaluate the real policy engine. This does not authorize or execute tools.
+        if len(json.dumps(call.arguments,ensure_ascii=True))>4000:
+            raise HTTPException(413,'Payload exceeds public inspection limit')
+        reason=policy(call)
+        decision=('block' if reason else
+                  'approval_required' if call.tool=='send_notification' else 'allow')
+        return {'decision':decision,'reason':reason or
+                ('Request-bound administrator approval is required'
+                 if decision=='approval_required' else 'Tool request passes policy checks'),
+                'sanitized_arguments':redact(call.arguments),
+                'executed':False,'approval_issued':False,
+                'mode':'live_server_policy_inspection'}
+    @app.post('/public/search')
+    def public_search(payload:PublicSearch):
+        # Search text that a visitor submits now; no stored or fabricated results.
+        if any(len(doc)>2000 for doc in payload.documents):
+            raise HTTPException(413,'Each document must contain at most 2000 characters')
+        check=Call(session='public',tool='search_docs',arguments={'query':payload.query})
+        denial=policy(check)
+        if denial: raise HTTPException(403,denial)
+        terms=set(re.findall(r'[a-z0-9]{2,}',payload.query.lower()))
+        results=[]
+        for i,doc in enumerate(payload.documents):
+            words=re.findall(r'[a-z0-9]{2,}',doc.lower())
+            hits=sum(words.count(term) for term in terms)
+            if hits:
+                results.append({'document_index':i,'score':hits,
+                                'excerpt':redact(doc[:500])})
+        results.sort(key=lambda item:(-item['score'],item['document_index']))
+        return {'query':redact(payload.query),'matches':results[:8],
+                'total_matches':len(results),'processed_documents':len(payload.documents),
+                'mode':'real_lexical_document_search',
+                'note':'Deterministic search of caller-supplied text; no LLM or external messaging.'}
+
     def auth(provided,expected):
         if not expected or not provided or not hmac.compare_digest(provided,expected):
             raise HTTPException(401,'Valid API key required; set server environment keys first')
