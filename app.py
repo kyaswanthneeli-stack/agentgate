@@ -88,7 +88,7 @@ def create_app(client_key=None, admin_key=None, limit=10, clock=time.time):
                 'note':'Deterministic search of caller-supplied text; no LLM or external messaging.'}
 
     def auth(provided,expected):
-        if not expected or not provided or not hmac.compare_digest(provided,expected):
+        if not expected or not provided or not hmac.compare_digest(provided.encode('utf-8'),expected.encode('utf-8')):
             raise HTTPException(401,'Valid API key required; set server environment keys first')
     def policy(call):
         text=json.dumps(call.arguments)
@@ -109,7 +109,7 @@ def create_app(client_key=None, admin_key=None, limit=10, clock=time.time):
         with lock:
             now=clock()
             for key in list(approvals):
-                if approvals[key][1]<now: del approvals[key]
+                if approvals[key][1]<=now: del approvals[key]
             if len(approvals)>=1000: raise HTTPException(429,'Approval capacity reached')
             nonce=secrets.token_hex(16); digest=fingerprint(call)
             token=nonce+'.'+hmac.new(signing,(nonce+digest).encode(),hashlib.sha256).hexdigest()
@@ -125,7 +125,7 @@ def create_app(client_key=None, admin_key=None, limit=10, clock=time.time):
             if counts.get(call.session,0)>=limit: raise HTTPException(429,'Session call limit reached')
             if call.tool=='send_notification':
                 approved=approvals.get(call.approval)
-                if not approved or approved[0]!=fingerprint(call) or approved[1]<clock():
+                if not approved or approved[0]!=fingerprint(call) or approved[1]<=clock():
                     raise HTTPException(403,'Valid request-bound approval required')
                 del approvals[call.approval]
             counts[call.session]=counts.get(call.session,0)+1
